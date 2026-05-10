@@ -1,0 +1,7 @@
+ledger-backup.json
+ledger-icon-master.png.PNG
+*.tmp
+*.temp
+*.bak
+Thumbs.db
+.DS_Store
