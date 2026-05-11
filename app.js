@@ -51,6 +51,7 @@
     ensureMonth(monthKey());
     ensureReceivables();
     bindEvents();
+    setupViewportAssist();
     render();
 
     if ("serviceWorker" in navigator) {
@@ -124,6 +125,7 @@
     els.accountsList.addEventListener("click", removeAccount);
     els.backupButton.addEventListener("click", downloadBackup);
     els.restoreInput.addEventListener("change", restoreBackup);
+    document.addEventListener("focusin", keepFocusedControlVisible);
   }
 
   function loadData() {
@@ -574,6 +576,30 @@
     renderPrintRows();
   }
 
+  function setupViewportAssist() {
+    if (!window.visualViewport) return;
+    const update = () => {
+      const hiddenHeight = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+      document.documentElement.style.setProperty("--keyboard-pad", `${Math.round(hiddenHeight)}px`);
+    };
+    window.visualViewport.addEventListener("resize", update);
+    window.visualViewport.addEventListener("scroll", update);
+    update();
+  }
+
+  function keepFocusedControlVisible(event) {
+    const control = event.target.closest("input, select, button");
+    if (!control) return;
+    window.setTimeout(() => scrollControlIntoComfort(control), 140);
+    window.setTimeout(() => scrollControlIntoComfort(control), 420);
+  }
+
+  function scrollControlIntoComfort(control) {
+    const target = control.closest("tr, .receivable-card, .receivable-form, .account-form") || control;
+    const keyboardPad = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-pad"), 10) || 0;
+    target.scrollIntoView({ block: keyboardPad > 40 ? "center" : "nearest", inline: "nearest" });
+  }
+
   function handleReceivableBlur(event) {
     const input = event.target.closest("input[data-field]");
     if (!input) return;
@@ -626,7 +652,7 @@
     const input = event.target.closest("input[data-field]");
     if (!input) return;
     window.setTimeout(() => {
-      input.closest("tr").scrollIntoView({ block: "nearest", inline: "nearest" });
+      scrollControlIntoComfort(input);
     }, 80);
   }
 
