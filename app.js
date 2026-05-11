@@ -1097,10 +1097,20 @@
   }
 
   function closeReceivablesMode() {
+    const parsed = parseIsoDate(state.receivableSelectedDate);
+    if (parsed) {
+      state.currentYear = parsed.year;
+      state.currentMonth = parsed.month;
+      els.yearInput.value = state.currentYear;
+      els.monthSelect.value = state.currentMonth;
+      ensureMonth(monthKey());
+    }
     state.appMode = "ledger";
     state.activeView = "ledger";
     renderTabs();
     renderAppMode();
+    renderLedger();
+    renderPrintRows();
   }
 
   function toggleLock() {
