@@ -67,6 +67,15 @@ h1 { margin: 0; font-size: 0.88rem; letter-spacing: 0; white-space: nowrap; }
 .save-status { margin: 0; color: var(--muted); font-size: 0.66rem; white-space: nowrap; }
 .receivable-totals { margin: 0 0 0 8px; color: #8a3a4b; font-size: 0.7rem; font-weight: 800; white-space: nowrap; }
 .header-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.orientation-notice {
+  display: none;
+  padding: 5px 10px 5px 14px;
+  border-bottom: 1px solid #a9d987;
+  background: #e7f8c6;
+  color: #23440e;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
 .lock-badge {
   border: 1px solid #b18930;
   border-radius: 999px;
@@ -389,7 +398,10 @@ body.receivable-mode .receivable-form button {
   .receivable-detail-panel { max-height: 190px; }
 }
 
-@media (orientation: portrait) { .ledger-scroll { max-height: calc(100vh - 105px); } }
+@media (orientation: portrait) {
+  .orientation-notice { display: block; }
+  .ledger-scroll { max-height: calc(100vh - 136px); }
+}
 
 @page { size: 182mm 257mm; margin: 5mm; }
 
