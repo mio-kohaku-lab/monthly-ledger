@@ -49,8 +49,7 @@ button.active { background: var(--cover-dark); border-color: var(--cover-dark); 
 button:focus-visible, input:focus-visible, select:focus-visible, .file-button:focus-within { outline: 2px solid #c55770; outline-offset: -1px; }
 
 .top-bar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -351,9 +350,11 @@ body.receivable-mode .receivable-form button {
 .account-suggest {
   position: fixed;
   z-index: 30;
-  max-height: 148px;
+  max-height: 134px;
   min-width: 96px;
   overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   border: 1px solid var(--line);
   background: #fff8ee;
   box-shadow: 0 4px 10px rgba(76, 38, 45, 0.18);
@@ -362,11 +363,11 @@ body.receivable-mode .receivable-form button {
 .account-suggest button {
   display: block;
   width: 100%;
-  min-height: 24px;
+  min-height: 22px;
   border: 0;
   border-bottom: 1px solid var(--thin-line);
   border-radius: 0;
-  padding: 2px 7px;
+  padding: 1px 7px;
   background: #fff8ee;
   color: var(--ink);
   text-align: left;

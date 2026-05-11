@@ -107,7 +107,7 @@
     els.rowsContainer.addEventListener("blur", handleCellBlur, true);
     els.rowsContainer.addEventListener("focusin", keepFocusedRowVisible);
     els.rowsContainer.addEventListener("click", handleRowAction);
-    els.accountSuggest.addEventListener("pointerdown", chooseSuggestedAccount);
+    els.accountSuggest.addEventListener("click", chooseSuggestedAccount);
     document.addEventListener("pointerdown", hideAccountSuggestOnOutside);
     document.addEventListener("pointerdown", hideClientSuggestOnOutside);
     els.rowsContainer.addEventListener("keydown", handleCellKeydown);
@@ -387,6 +387,7 @@
     const value = isAmountField(field) ? formatAmount(input.value) : input.value;
     if (input.value !== value) input.value = value;
     row[field] = value;
+    if ((field === "debit" || field === "credit") && document.activeElement === input) showAccountSuggest(input);
 
     const changed = normalizeRows(currentRows());
     save();
@@ -482,7 +483,7 @@
   }
 
   function showAccountSuggest(input) {
-    const candidates = input.dataset.field === "subAccount" ? recentSubAccounts() : input.dataset.field === "client" ? recentClients() : uniqueAccounts();
+    const candidates = accountSuggestCandidates(input);
     if (!candidates.length) {
       els.accountSuggest.hidden = true;
       return;
@@ -496,6 +497,46 @@
     els.accountSuggest.style.top = `${rect.bottom + 2}px`;
     els.accountSuggest.style.width = `${Math.max(rect.width, 112)}px`;
     els.accountSuggest.hidden = false;
+  }
+
+  function accountSuggestCandidates(input) {
+    const field = input.dataset.field;
+    if (field === "subAccount") return recentSubAccounts();
+    if (field === "client") return recentClients();
+    const query = normalizeSuggestText(input.value);
+    const accounts = uniqueAccounts();
+    const matched = query
+      ? accounts.filter((name) => accountMatchesQuery(name, query))
+      : accounts;
+    return matched.slice(0, 6);
+  }
+
+  function accountMatchesQuery(name, query) {
+    const text = normalizeSuggestText(name);
+    const reading = normalizeSuggestText(accountReading(name));
+    return text.includes(query) || reading.includes(query);
+  }
+
+  function accountReading(name) {
+    const readings = {
+      "売掛金": "うりかけきん",
+      "売上高": "うりあげだか",
+      "普通預金": "ふつうよきん",
+      "法定福利費": "ほうていふくりひ",
+      "現金": "げんきん",
+      "雑収入": "ざつしゅうにゅう",
+      "消耗品費": "しょうもうひんひ",
+      "役員報酬": "やくいんほうしゅう"
+    };
+    return readings[name] || "";
+  }
+
+  function normalizeSuggestText(value) {
+    return toHalfWidth(String(value || ""))
+      .trim()
+      .toLowerCase()
+      .replace(/[ァ-ン]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
+      .replace(/\s+/g, "");
   }
 
   function chooseSuggestedAccount(event) {
@@ -651,9 +692,18 @@
   function keepFocusedRowVisible(event) {
     const input = event.target.closest("input[data-field]");
     if (!input) return;
+    if (input.closest("#rowsContainer")) scrollLedgerHeaderToTop();
     window.setTimeout(() => {
       scrollControlIntoComfort(input);
     }, 80);
+  }
+
+  function scrollLedgerHeaderToTop() {
+    if (state.appMode !== "ledger" || state.activeView !== "ledger") return;
+    const scroll = document.querySelector(".ledger-scroll");
+    if (!scroll) return;
+    const top = window.scrollY + scroll.getBoundingClientRect().top;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   }
 
   function handleRowAction(event) {
