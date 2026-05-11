@@ -11,6 +11,10 @@
   --accent: #b2475d;
   --accent-soft: #f0c7cf;
   --danger: #91342f;
+  --memo-green: #9bd432;
+  --memo-green-dark: #4c8214;
+  --memo-blue: #32a8c7;
+  --memo-blue-soft: #cceef4;
 }
 
 * { box-sizing: border-box; }
@@ -61,6 +65,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, .file-button:fo
 .title-block { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 h1 { margin: 0; font-size: 0.88rem; letter-spacing: 0; white-space: nowrap; }
 .save-status { margin: 0; color: var(--muted); font-size: 0.66rem; white-space: nowrap; }
+.receivable-totals { margin: 0 0 0 8px; color: #8a3a4b; font-size: 0.7rem; font-weight: 800; white-space: nowrap; }
+.header-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
 .lock-badge {
   border: 1px solid #b18930;
   border-radius: 999px;
@@ -89,11 +95,89 @@ h1 { margin: 0; font-size: 0.88rem; letter-spacing: 0; white-space: nowrap; }
 #yearInput { width: 62px; }
 #monthSelect { width: 52px; }
 
-.compact-actions, .lock-actions { display: flex; gap: 3px; flex: 0 0 auto; }
+.compact-actions, .lock-actions, .mode-actions { display: flex; gap: 3px; flex: 0 0 auto; }
+.mode-actions { margin-left: auto; padding-left: 10px; }
+.mode-actions button {
+  border-color: var(--memo-green-dark);
+  background: #e7f8c6;
+  color: #23440e;
+  font-weight: 800;
+}
 .tabs { display: flex; gap: 3px; flex: 0 0 auto; margin-bottom: 0; }
 .tabs button { flex: 0 0 auto; min-width: 42px; }
 .view { display: none; }
 .view.active { display: block; }
+body.receivable-mode .sheet-toolbar { display: none; }
+body.receivable-mode .app-shell { padding-top: 5px; }
+body.receivable-mode #lockBadge { display: none; }
+body.receivable-mode .save-status { display: none; }
+body.receivable-mode {
+  background: linear-gradient(90deg, var(--memo-green-dark) 0 8px, #eef7df 8px);
+}
+body.receivable-mode .top-bar {
+  background: rgba(238, 247, 223, 0.97);
+  border-bottom-color: #a9d987;
+}
+body.receivable-mode h1 { color: #23440e; }
+body.receivable-mode #backToLedgerButton {
+  border-color: var(--cover-dark);
+  background: #ffe6ec;
+  color: var(--cover-dark);
+  font-weight: 800;
+}
+body.receivable-mode .receivable-totals { color: #12677a; }
+body.receivable-mode .receivable-calendar-panel,
+body.receivable-mode .receivable-detail-panel {
+  border-color: #4f9a22;
+  background: #fbfff2;
+}
+body.receivable-mode .receivable-monthbar {
+  border-bottom-color: #a9d987;
+  background: #d9f39a;
+}
+body.receivable-mode .receivable-monthbar button {
+  border-color: #4f9a22;
+  background: #f5ffe4;
+  color: #23440e;
+}
+body.receivable-mode .receivable-weekdays span {
+  border-color: #bfe3a5;
+  color: #38671a;
+}
+body.receivable-mode .receivable-weekdays span:first-child { color: #4f8d17; }
+body.receivable-mode .receivable-weekdays span:last-child { color: #14788e; }
+body.receivable-mode .receivable-day {
+  border-color: #c5dfb1;
+  background: #fbfff2;
+}
+body.receivable-mode .receivable-day.outside {
+  color: #95aa8a;
+  background: #edf7e4;
+}
+body.receivable-mode .receivable-day.has-unpaid {
+  background: #effadb;
+}
+body.receivable-mode .receivable-day.selected,
+body.receivable-mode .receivable-day.selected.has-unpaid {
+  background: var(--memo-blue-soft);
+  box-shadow: inset 0 0 0 2px var(--memo-blue);
+}
+body.receivable-mode .receivable-day-lines,
+body.receivable-mode .receivable-item-amount {
+  color: #128099;
+}
+body.receivable-mode .receivable-form input,
+body.receivable-mode .receivable-item {
+  border-color: #bfe3a5;
+  background: #fcfff7;
+}
+body.receivable-mode .receivable-detail-panel button:not(.danger),
+body.receivable-mode .receivable-form button {
+  border-color: #168aa3;
+  background: #d9f6fb;
+  color: #07576a;
+  font-weight: 800;
+}
 
 .notice, .hint, .empty-state {
   margin: 4px 0;
@@ -167,6 +251,85 @@ h1 { margin: 0; font-size: 0.88rem; letter-spacing: 0; white-space: nowrap; }
 
 .row-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; padding: 2px; }
 .row-actions button { min-height: 23px; padding: 1px 0; font-size: 0.66rem; }
+.receivable-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(240px, 1fr); gap: 6px; max-height: calc(100vh - 88px); }
+.receivable-calendar-panel, .receivable-detail-panel {
+  min-width: 0;
+  border: 1.5px solid var(--line);
+  background: var(--sheet);
+}
+.receivable-monthbar { display: grid; grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 4px; padding: 4px; border-bottom: 1px solid var(--thin-line); background: #f3d7dc; }
+.receivable-monthbar button { min-height: 24px; padding: 0; font-size: 1.2rem; line-height: 1; }
+.receivable-month-label { text-align: center; font-weight: 800; font-size: 0.9rem; }
+.receivable-weekdays, .receivable-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.receivable-weekdays span {
+  padding: 3px 0;
+  border-right: 1px solid var(--thin-line);
+  border-bottom: 1px solid var(--thin-line);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+}
+.receivable-weekdays span:first-child { color: #a72f3f; }
+.receivable-weekdays span:last-child { color: #273172; border-right: 0; }
+.receivable-day {
+  position: relative;
+  min-height: 43px;
+  border: 0;
+  border-right: 1px solid var(--thin-line);
+  border-bottom: 1px solid var(--thin-line);
+  border-radius: 0;
+  padding: 2px 3px;
+  background: rgba(255, 249, 237, 0.92);
+  text-align: left;
+  white-space: normal;
+}
+.receivable-day:nth-child(7n) { border-right: 0; }
+.receivable-day.outside { color: #b7a6a1; background: #f7eadf; }
+.receivable-day.selected { background: #f4cbd4; box-shadow: inset 0 0 0 2px var(--accent); }
+.receivable-day.has-unpaid { background: #fff3df; }
+.receivable-day.selected.has-unpaid { background: #f4cbd4; }
+.receivable-day-number { display: block; font-size: 0.78rem; font-weight: 800; line-height: 1; }
+.receivable-day-lines { display: grid; gap: 1px; margin-top: 2px; color: #227c91; font-size: 0.62rem; line-height: 1.1; }
+.receivable-day-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.receivable-day-more { color: var(--cover-dark); font-weight: 800; }
+.receivable-detail-panel { overflow-y: auto; padding: 5px; }
+.receivable-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px; }
+.detail-label { display: block; color: var(--muted); font-size: 0.62rem; font-weight: 700; }
+#receivableSelectedLabel { font-size: 0.9rem; }
+.receivable-detail-list { display: grid; gap: 5px; }
+.receivable-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.receivable-form input {
+  width: 100%;
+  min-height: 24px;
+  border: 1px solid var(--thin-line);
+  border-radius: 3px;
+  padding: 2px 4px;
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 0.72rem;
+}
+.receivable-form input.amount { text-align: right; font-variant-numeric: tabular-nums; }
+#receivableDetailInput { grid-column: 1; }
+.receivable-item {
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid var(--thin-line);
+  background: #fff8ee;
+  font-size: 0.72rem;
+}
+.receivable-item-main { display: grid; grid-template-columns: minmax(0, 1fr) 74px auto; align-items: center; gap: 5px; }
+.receivable-item-client { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.receivable-item-amount { color: #227c91; text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
+.receivable-item-detail { color: var(--ink); line-height: 1.25; overflow-wrap: anywhere; }
+.receivable-item button { min-height: 22px; padding-inline: 4px; font-size: 0.66rem; }
+.receivable-empty { margin: 8px 0; color: var(--muted); font-size: 0.72rem; text-align: center; }
 
 .account-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 5px; max-width: 520px; }
 .account-form input { min-height: 30px; border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px; background: #fff8ee; }
@@ -217,6 +380,13 @@ h1 { margin: 0; font-size: 0.88rem; letter-spacing: 0; white-space: nowrap; }
     min-width: 720px;
   }
   .col-summary { width: auto; }
+  .receivable-layout { grid-template-columns: minmax(0, 1.45fr) minmax(220px, 1fr); }
+  .receivable-day { min-height: 39px; }
+}
+
+@media (max-width: 620px) {
+  .receivable-layout { grid-template-columns: 1fr; max-height: none; }
+  .receivable-detail-panel { max-height: 190px; }
 }
 
 @media (orientation: portrait) { .ledger-scroll { max-height: calc(100vh - 105px); } }

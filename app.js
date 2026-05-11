@@ -12,6 +12,15 @@
     ["creditAmount", "金額"],
     ["summary", "摘要"]
   ];
+  const receivableColumns = [
+    ["date", "日付"],
+    ["client", "取引先"],
+    ["detail", "内容"],
+    ["amount", "金額"],
+    ["expectedDate", "入金予定日"],
+    ["paid", "入金済み"],
+    ["memo", "メモ"]
+  ];
 
   const MIN_VISIBLE_ROWS = 20;
 
@@ -19,6 +28,10 @@
     data: loadData(),
     currentYear: String(new Date().getFullYear()),
     currentMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
+    receivableYear: String(new Date().getFullYear()),
+    receivableMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
+    receivableSelectedDate: "",
+    appMode: "ledger",
     activeView: "ledger"
   };
 
@@ -30,9 +43,13 @@
     const current = getCurrentPeriod();
     state.currentYear = current.year;
     state.currentMonth = current.month;
+    state.receivableYear = current.year;
+    state.receivableMonth = current.month;
+    state.receivableSelectedDate = isoDate(current.year, current.month, "01");
     els.yearInput.value = state.currentYear;
     els.monthSelect.value = state.currentMonth;
     ensureMonth(monthKey());
+    ensureReceivables();
     bindEvents();
     render();
 
@@ -43,11 +60,14 @@
 
   function bindElements() {
     [
-      "saveStatus", "lockBadge", "yearInput", "monthSelect", "addRowButton", "sortByDateButton",
+      "appTitle", "receivableTotals", "saveStatus", "lockBadge", "backToLedgerButton", "yearInput", "monthSelect", "addRowButton", "sortByDateButton",
       "printButton", "csvButton", "toggleLockButton", "deleteMonthButton", "ledgerTab", "accountsTab",
-      "backupTab", "ledgerView", "accountsView", "backupView", "lockedNotice", "accountSuggest",
+      "openReceivablesButton", "backupTab", "ledgerView", "accountsView", "receivablesView", "backupView", "lockedNotice", "accountSuggest",
       "rowsContainer", "emptyState", "accountForm", "accountInput", "accountsList", "backupButton",
-      "restoreInput", "printTitle", "printRows"
+      "restoreInput", "printTitle", "printRows", "clientSuggest", "receivablePrevMonthButton",
+      "receivableNextMonthButton", "receivableMonthLabel", "receivableCalendar",
+      "receivableSelectedLabel", "receivableForm", "receivableClientInput",
+      "receivableAmountInput", "receivableDetailInput", "receivableDetailList"
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -78,6 +98,8 @@
     els.ledgerTab.addEventListener("click", () => setView("ledger"));
     els.accountsTab.addEventListener("click", () => setView("accounts"));
     els.backupTab.addEventListener("click", () => setView("backup"));
+    els.openReceivablesButton.addEventListener("click", openReceivablesMode);
+    els.backToLedgerButton.addEventListener("click", closeReceivablesMode);
 
     els.rowsContainer.addEventListener("input", handleRowInput);
     els.rowsContainer.addEventListener("focusin", handleAccountSuggestFocus);
@@ -86,7 +108,17 @@
     els.rowsContainer.addEventListener("click", handleRowAction);
     els.accountSuggest.addEventListener("pointerdown", chooseSuggestedAccount);
     document.addEventListener("pointerdown", hideAccountSuggestOnOutside);
+    document.addEventListener("pointerdown", hideClientSuggestOnOutside);
     els.rowsContainer.addEventListener("keydown", handleCellKeydown);
+
+    els.receivablePrevMonthButton.addEventListener("click", () => moveReceivableMonth(-1));
+    els.receivableNextMonthButton.addEventListener("click", () => moveReceivableMonth(1));
+    els.receivableForm.addEventListener("submit", addReceivableForSelectedDate);
+    els.receivableClientInput.addEventListener("focus", () => showClientSuggest(els.receivableClientInput));
+    els.receivableAmountInput.addEventListener("input", () => { els.receivableAmountInput.value = formatAmount(els.receivableAmountInput.value); });
+    els.receivableCalendar.addEventListener("click", selectReceivableDate);
+    els.receivableDetailList.addEventListener("click", handleReceivableAction);
+    els.clientSuggest.addEventListener("pointerdown", chooseSuggestedClient);
 
     els.accountForm.addEventListener("submit", addAccount);
     els.accountsList.addEventListener("click", removeAccount);
@@ -95,16 +127,18 @@
   }
 
   function loadData() {
-    const fallback = { version: 2, accounts: INITIAL_ACCOUNTS.slice(), recentSubAccounts: [], months: {}, lastSavedAt: "" };
+    const fallback = { version: 3, accounts: INITIAL_ACCOUNTS.slice(), recentSubAccounts: [], recentClients: [], months: {}, receivables: { rows: [] }, lastSavedAt: "" };
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return fallback;
       const parsed = JSON.parse(raw);
       return {
-        version: 2,
+        version: 3,
         accounts: Array.isArray(parsed.accounts) && parsed.accounts.length ? parsed.accounts : INITIAL_ACCOUNTS.slice(),
         recentSubAccounts: Array.isArray(parsed.recentSubAccounts) ? parsed.recentSubAccounts.map((name) => String(name).trim()).filter(Boolean).slice(0, 6) : [],
+        recentClients: Array.isArray(parsed.recentClients) ? parsed.recentClients.map((name) => String(name).trim()).filter(Boolean).slice(0, 6) : [],
         months: parsed.months && typeof parsed.months === "object" ? parsed.months : {},
+        receivables: parsed.receivables && typeof parsed.receivables === "object" && Array.isArray(parsed.receivables.rows) ? parsed.receivables : { rows: [] },
         lastSavedAt: parsed.lastSavedAt || ""
       };
     } catch {
@@ -144,13 +178,30 @@
   }
   function currentRows() { return currentMonthData().rows; }
   function isLocked() { return Boolean(currentMonthData().locked); }
+  function ensureReceivables() {
+    if (!state.data.receivables || typeof state.data.receivables !== "object") state.data.receivables = { rows: [] };
+    if (!Array.isArray(state.data.receivables.rows)) state.data.receivables.rows = [];
+    normalizeReceivableRows(state.data.receivables.rows);
+  }
+  function receivableRows() {
+    ensureReceivables();
+    return state.data.receivables.rows;
+  }
 
   function createRow() {
     return { id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date: "", debit: "", debitAmount: "", credit: "", subAccount: "", creditAmount: "", summary: "" };
   }
 
+  function createReceivableRow() {
+    return { id: `receivable-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date: "", client: "", detail: "", amount: "", expectedDate: "", paid: false, memo: "" };
+  }
+
   function isBlankRow(row) {
     return columns.every(([key]) => !String(row[key] || "").trim());
+  }
+
+  function isBlankReceivableRow(row) {
+    return receivableColumns.every(([key]) => key === "paid" ? !row.paid : !String(row[key] || "").trim());
   }
 
   function normalizeRows(rows) {
@@ -165,11 +216,25 @@
     return changed;
   }
 
+  function normalizeReceivableRows(rows) {
+    const filled = rows.filter((row) => !isBlankReceivableRow(row));
+    const blanks = rows.filter((row) => isBlankReceivableRow(row));
+    const targetLength = Math.max(MIN_VISIBLE_ROWS, filled.length + 1);
+    const normalized = filled.concat(blanks.slice(0, targetLength - filled.length));
+    while (normalized.length < targetLength) normalized.push(createReceivableRow());
+
+    const changed = normalized.length !== rows.length || normalized.some((row, index) => row !== rows[index]);
+    if (changed) rows.splice(0, rows.length, ...normalized);
+    return changed;
+  }
+
   function render() {
     renderSaveStatus();
     renderTabs();
+    renderAppMode();
     renderAccounts();
     renderLedger();
+    renderReceivables();
     renderPrintRows();
   }
 
@@ -181,8 +246,22 @@
     [["ledger", els.ledgerTab, els.ledgerView], ["accounts", els.accountsTab, els.accountsView], ["backup", els.backupTab, els.backupView]].forEach(([name, tab, view]) => {
       const active = state.activeView === name;
       tab.classList.toggle("active", active);
-      view.classList.toggle("active", active);
+      view.classList.toggle("active", state.appMode === "ledger" && active);
     });
+  }
+
+  function renderAppMode() {
+    const receivableMode = state.appMode === "receivables";
+    document.body.classList.toggle("receivable-mode", receivableMode);
+    els.appTitle.textContent = receivableMode ? "売掛金メモ" : "月次帳簿ノート";
+    els.receivableTotals.hidden = !receivableMode;
+    if (receivableMode) renderReceivableTotals();
+    els.backToLedgerButton.hidden = !receivableMode;
+    els.receivablesView.classList.toggle("active", receivableMode);
+    if (!receivableMode) {
+      const activeView = state.activeView === "accounts" ? els.accountsView : state.activeView === "backup" ? els.backupView : els.ledgerView;
+      activeView.classList.add("active");
+    }
   }
 
   function renderLedger() {
@@ -218,6 +297,74 @@
       </tr>`;
   }
 
+  function renderReceivables() {
+    const rows = receivableRows();
+    normalizeReceivableRows(rows);
+    const selected = ensureReceivableSelectedDate();
+    renderReceivableTotals();
+    els.receivableMonthLabel.textContent = `${state.receivableYear}年 ${Number(state.receivableMonth)}月`;
+    els.receivableCalendar.innerHTML = receivableCalendarTemplate();
+    els.receivableSelectedLabel.textContent = formatReceivableDateLabel(selected);
+    const dailyRows = rows.filter((row) => receivableDateKey(row.date) === selected);
+    els.receivableDetailList.innerHTML = dailyRows.length
+      ? dailyRows.map((row) => receivableItemTemplate(row)).join("")
+      : `<p class="receivable-empty">この日の売掛メモはまだありません。</p>`;
+  }
+
+  function renderReceivableTotals() {
+    const year = state.receivableYear;
+    const month = state.receivableMonth;
+    let monthTotal = 0;
+    let yearTotal = 0;
+    receivableRows().forEach((row) => {
+      const parsed = parseIsoDate(receivableDateKey(row.date));
+      if (!parsed || parsed.year !== year) return;
+      const amount = amountNumber(row.amount);
+      yearTotal += amount;
+      if (parsed.month === month) monthTotal += amount;
+    });
+    els.receivableTotals.textContent = `月 ${monthTotal.toLocaleString("en-US")}円 / 年 ${yearTotal.toLocaleString("en-US")}円`;
+  }
+
+  function receivableCalendarTemplate() {
+    const year = Number(state.receivableYear);
+    const month = Number(state.receivableMonth);
+    const first = new Date(year, month - 1, 1);
+    const start = new Date(year, month - 1, 1 - first.getDay());
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const key = isoDate(String(date.getFullYear()), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0"));
+      const rows = receivablesForDate(key);
+      const outside = date.getMonth() !== month - 1;
+      const selected = key === state.receivableSelectedDate;
+      const hasUnpaid = rows.some((row) => !row.paid);
+      const total = rows.reduce((sum, row) => sum + amountNumber(row.amount), 0);
+      const lines = total ? `<span class="receivable-day-line">${escapeHtml(total.toLocaleString("en-US"))}</span>` : "";
+      const more = "";
+      return `<button type="button" class="receivable-day ${outside ? "outside" : ""} ${selected ? "selected" : ""} ${hasUnpaid ? "has-unpaid" : ""}" data-date="${key}">
+        <span class="receivable-day-number">${date.getDate()}</span>
+        <span class="receivable-day-lines">${lines}${more}</span>
+      </button>`;
+    }).join("");
+  }
+
+  function receivablesForDate(dateKey) {
+    return receivableRows().filter((row) => receivableDateKey(row.date) === dateKey);
+  }
+
+  function receivableItemTemplate(row) {
+    return `
+      <div class="receivable-item" data-row-id="${escapeAttr(row.id)}">
+        <div class="receivable-item-main">
+          <span class="receivable-item-client">${escapeHtml(row.client || "")}</span>
+          <span class="receivable-item-amount">${escapeHtml(row.amount || "")}</span>
+          <button type="button" data-action="delete" class="danger">削除</button>
+        </div>
+        <div class="receivable-item-detail">${escapeHtml(row.detail || "")}</div>
+      </div>`;
+  }
+
   function cellTemplate(key, value, locked, placeholder, listId, className, inputMode) {
     const list = listId ? `list="${listId}"` : "";
     const mode = inputMode ? `inputmode="${inputMode}"` : "";
@@ -249,6 +396,25 @@
     }
   }
 
+  function handleReceivableInput(event) {
+    const input = event.target.closest("input[data-field]");
+    if (!input) return;
+    const card = input.closest(".receivable-card");
+    if (!card) return;
+    const row = receivableRows().find((item) => item.id === card.dataset.rowId);
+    if (!row) return;
+
+    const field = input.dataset.field;
+    const value = field === "paid" ? input.checked : field === "amount" ? formatAmount(input.value) : input.value;
+    if (field === "amount" && input.value !== value) input.value = value;
+    row[field] = value;
+    save();
+    if (field === "paid") {
+      card.classList.toggle("paid", input.checked);
+      renderReceivables();
+    }
+  }
+
   function isAmountField(field) {
     return field === "debitAmount" || field === "creditAmount";
   }
@@ -258,6 +424,11 @@
     if (!text) return "";
     if (!/^\d+$/.test(text)) return value;
     return Number(text).toLocaleString("en-US");
+  }
+
+  function amountNumber(value) {
+    const text = String(value || "").replace(/,/g, "").trim();
+    return /^\d+$/.test(text) ? Number(text) : 0;
   }
 
   function commitDebitAmount(input) {
@@ -285,11 +456,38 @@
     showAccountSuggest(input);
   }
 
+  function handleReceivableSuggestFocus(event) {
+    const input = event.target.closest("input[data-field='client']");
+    if (!input) return;
+    showClientSuggest(input);
+  }
+
+  function showClientSuggest(input) {
+    const candidates = recentClients();
+    if (!candidates.length) {
+      els.clientSuggest.hidden = true;
+      return;
+    }
+    const card = input.closest(".receivable-card");
+    els.clientSuggest.dataset.targetRow = card ? card.dataset.rowId : "";
+    els.clientSuggest.dataset.target = card ? "card" : "form";
+    els.clientSuggest.innerHTML = candidates.map((name) => `<button type="button" data-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`).join("");
+    const rect = input.getBoundingClientRect();
+    els.clientSuggest.style.left = `${Math.max(4, rect.left)}px`;
+    els.clientSuggest.style.top = `${rect.bottom + 2}px`;
+    els.clientSuggest.style.width = `${Math.max(rect.width, 112)}px`;
+    els.clientSuggest.hidden = false;
+  }
+
   function showAccountSuggest(input) {
-    const candidates = input.dataset.field === "subAccount" ? recentSubAccounts() : uniqueAccounts();
-    if (!candidates.length) return;
+    const candidates = input.dataset.field === "subAccount" ? recentSubAccounts() : input.dataset.field === "client" ? recentClients() : uniqueAccounts();
+    if (!candidates.length) {
+      els.accountSuggest.hidden = true;
+      return;
+    }
     els.accountSuggest.dataset.targetRow = input.closest("tr").dataset.rowId;
     els.accountSuggest.dataset.targetField = input.dataset.field;
+    els.accountSuggest.dataset.targetContainer = input.closest("tbody").id;
     els.accountSuggest.innerHTML = candidates.map((name) => `<button type="button" data-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`).join("");
     const rect = input.getBoundingClientRect();
     els.accountSuggest.style.left = `${Math.max(4, rect.left)}px`;
@@ -304,19 +502,43 @@
     event.preventDefault();
     const rowId = els.accountSuggest.dataset.targetRow;
     const field = els.accountSuggest.dataset.targetField;
-    const input = els.rowsContainer.querySelector(`tr[data-row-id="${CSS.escape(rowId)}"] input[data-field="${field}"]`);
+    const container = document.getElementById(els.accountSuggest.dataset.targetContainer || "rowsContainer");
+    const input = container ? container.querySelector(`tr[data-row-id="${CSS.escape(rowId)}"] input[data-field="${field}"]`) : null;
     if (!input) return;
     input.value = button.dataset.value;
     input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertReplacementText", data: button.dataset.value }));
     if (field === "subAccount") rememberSubAccount(button.dataset.value);
+    if (field === "client") rememberClient(button.dataset.value);
     input.focus();
     els.accountSuggest.hidden = true;
   }
 
+  function chooseSuggestedClient(event) {
+    const button = event.target.closest("button[data-value]");
+    if (!button) return;
+    event.preventDefault();
+    const rowId = els.clientSuggest.dataset.targetRow;
+    const input = els.clientSuggest.dataset.target === "form"
+      ? els.receivableClientInput
+      : els.receivableDetailList.querySelector(`.receivable-card[data-row-id="${CSS.escape(rowId)}"] input[data-field="client"]`);
+    if (!input) return;
+    input.value = button.dataset.value;
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertReplacementText", data: button.dataset.value }));
+    rememberClient(button.dataset.value);
+    input.focus();
+    els.clientSuggest.hidden = true;
+  }
+
   function hideAccountSuggestOnOutside(event) {
     if (els.accountSuggest.hidden) return;
-    if (event.target.closest("#accountSuggest") || event.target.closest("input.account-input") || event.target.closest("input.sub-account-input")) return;
+    if (event.target.closest("#accountSuggest") || event.target.closest("input.account-input") || event.target.closest("input.sub-account-input") || event.target.closest("input.client-input")) return;
     els.accountSuggest.hidden = true;
+  }
+
+  function hideClientSuggestOnOutside(event) {
+    if (els.clientSuggest.hidden) return;
+    if (event.target.closest("#clientSuggest") || event.target.closest("input.client-input")) return;
+    els.clientSuggest.hidden = true;
   }
 
   function handleCellBlur(event) {
@@ -352,6 +574,54 @@
     renderPrintRows();
   }
 
+  function handleReceivableBlur(event) {
+    const input = event.target.closest("input[data-field]");
+    if (!input) return;
+    const card = input.closest(".receivable-card");
+    if (!card) return;
+    const row = receivableRows().find((item) => item.id === card.dataset.rowId);
+    if (!row) return;
+    const field = input.dataset.field;
+
+    if (field === "client") {
+      const trimmed = input.value.trim();
+      input.value = trimmed;
+      row.client = trimmed;
+      if (trimmed) rememberClient(trimmed);
+      save();
+      renderReceivables();
+      return;
+    }
+
+    if (field === "amount") {
+      const value = formatAmount(input.value);
+      input.value = value;
+      row.amount = value;
+      save();
+      renderReceivables();
+      return;
+    }
+
+    if (field === "date" || field === "expectedDate") {
+      const value = normalizeReceivableDate(input.value, field === "date" ? row.date : row.expectedDate);
+      row[field] = value;
+      input.value = formatReceivableInputDate(value);
+      if (field === "date" && value) {
+        state.receivableSelectedDate = value;
+      }
+      save();
+      renderReceivables();
+      return;
+    }
+
+    if (field !== "paid") {
+      const trimmed = input.value.trim();
+      input.value = trimmed;
+      row[field] = trimmed;
+      save();
+    }
+  }
+
   function keepFocusedRowVisible(event) {
     const input = event.target.closest("input[data-field]");
     if (!input) return;
@@ -376,6 +646,22 @@
     renderLedger();
   }
 
+  function handleReceivableAction(event) {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const rows = receivableRows();
+    const item = button.closest(".receivable-item");
+    const index = rows.findIndex((row) => item && row.id === item.dataset.rowId);
+    if (index < 0) return;
+    if (button.dataset.action === "delete") {
+      if (!confirm("この売掛メモ行を削除しますか？")) return;
+      rows.splice(index, 1);
+    }
+    normalizeReceivableRows(rows);
+    save();
+    renderReceivables();
+  }
+
   function handleCellKeydown(event) {
     if (event.key !== "Enter") return;
     const debitAmountInput = event.target.closest("input[data-field='debitAmount']");
@@ -387,6 +673,134 @@
       inputs[index + 1].focus();
       inputs[index + 1].select();
     }
+  }
+
+  function handleReceivableKeydown(event) {
+    if (event.key !== "Enter") return;
+    const input = event.target.closest("input[data-field]");
+    if (!input) return;
+    input.blur();
+    const inputs = Array.from(els.receivableDetailList.querySelectorAll("input[data-field]"));
+    const index = inputs.indexOf(input);
+    if (index >= 0 && inputs[index + 1]) {
+      event.preventDefault();
+      inputs[index + 1].focus();
+      if (inputs[index + 1].select) inputs[index + 1].select();
+    }
+  }
+
+  function moveReceivableMonth(offset) {
+    const date = new Date(Number(state.receivableYear), Number(state.receivableMonth) - 1 + offset, 1);
+    state.receivableYear = String(date.getFullYear());
+    state.receivableMonth = String(date.getMonth() + 1).padStart(2, "0");
+    state.receivableSelectedDate = isoDate(state.receivableYear, state.receivableMonth, "01");
+    renderReceivables();
+  }
+
+  function selectReceivableDate(event) {
+    const button = event.target.closest("button[data-date]");
+    if (!button) return;
+    state.receivableSelectedDate = button.dataset.date;
+    const parsed = parseIsoDate(state.receivableSelectedDate);
+    if (parsed) {
+      state.receivableYear = parsed.year;
+      state.receivableMonth = parsed.month;
+    }
+    renderReceivables();
+  }
+
+  function addReceivableForSelectedDate(event) {
+    event.preventDefault();
+    const date = ensureReceivableSelectedDate();
+    const client = els.receivableClientInput.value.trim();
+    const amount = formatAmount(els.receivableAmountInput.value);
+    const detail = els.receivableDetailInput.value.trim();
+    if (!client && !amount && !detail) return;
+    const rows = receivableRows();
+    rows.push({ ...createReceivableRow(), date, client, amount, detail });
+    if (client) rememberClient(client);
+    normalizeReceivableRows(rows);
+    save();
+    els.receivableClientInput.value = "";
+    els.receivableAmountInput.value = "";
+    els.receivableDetailInput.value = "";
+    renderReceivables();
+    els.receivableClientInput.focus();
+  }
+
+  function ensureReceivableSelectedDate() {
+    const parsed = parseIsoDate(state.receivableSelectedDate);
+    if (parsed && parsed.year === state.receivableYear && parsed.month === state.receivableMonth) return state.receivableSelectedDate;
+    state.receivableSelectedDate = isoDate(state.receivableYear, state.receivableMonth, "01");
+    return state.receivableSelectedDate;
+  }
+
+  function receivableDateKey(value) {
+    const normalized = normalizeReceivableDate(value, "");
+    return normalized || "";
+  }
+
+  function normalizeReceivableDate(value, fallback) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const text = toHalfWidth(raw).replace(/\s+/g, "");
+    const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    const slash = text.match(/^(?:(\d{4})[\/.-])?(\d{1,2})[\/月.-](\d{1,2})日?$/);
+    const compact = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+    const compactMonthDay = text.match(/^(\d{4})$/);
+    const dayOnly = text.match(/^(\d{1,2})日?$/);
+    const base = parseIsoDate(fallback) || { year: state.receivableYear, month: state.receivableMonth };
+    let year = base.year;
+    let month = base.month;
+    let day = "";
+
+    if (iso) {
+      year = iso[1];
+      month = iso[2];
+      day = iso[3];
+    } else if (slash) {
+      year = slash[1] || base.year;
+      month = slash[2];
+      day = slash[3];
+    } else if (compact) {
+      year = compact[1];
+      month = compact[2];
+      day = compact[3];
+    } else if (compactMonthDay) {
+      month = compactMonthDay[1].slice(0, 2);
+      day = compactMonthDay[1].slice(2, 4);
+    } else if (dayOnly) {
+      day = dayOnly[1];
+    } else {
+      return raw;
+    }
+
+    const normalized = isoDate(year, month, day);
+    return isRealDate(Number(year), Number(month), Number(day)) ? normalized : raw;
+  }
+
+  function formatReceivableInputDate(value) {
+    const parsed = parseIsoDate(value);
+    if (!parsed) return value || "";
+    return `${parsed.month}/${parsed.day}`;
+  }
+
+  function formatReceivableDateLabel(value) {
+    const parsed = parseIsoDate(value);
+    if (!parsed) return "--/--";
+    const date = new Date(Number(parsed.year), Number(parsed.month) - 1, Number(parsed.day));
+    const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+    return `${parsed.month}/${parsed.day} (${weekdays[date.getDay()]})`;
+  }
+
+  function parseIsoDate(value) {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return { year: match[1], month: match[2], day: match[3] };
+  }
+
+  function isoDate(year, month, day) {
+    return `${String(year).padStart(4, "0")}-${pad2(month)}-${pad2(day)}`;
   }
 
   function sortDatedRowsOnly() {
@@ -476,6 +890,18 @@
     state.data.recentSubAccounts = [trimmed, ...withoutDuplicate].slice(0, 6);
   }
 
+  function recentClients() {
+    if (!Array.isArray(state.data.recentClients)) state.data.recentClients = [];
+    return state.data.recentClients.map((name) => String(name).trim()).filter(Boolean).slice(0, 6);
+  }
+
+  function rememberClient(value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return;
+    const withoutDuplicate = recentClients().filter((name) => name !== trimmed);
+    state.data.recentClients = [trimmed, ...withoutDuplicate].slice(0, 6);
+  }
+
   function addAccount(event) {
     event.preventDefault();
     const value = els.accountInput.value.trim();
@@ -498,7 +924,26 @@
     renderAccounts();
   }
 
-  function setView(name) { state.activeView = name; renderTabs(); }
+  function setView(name) {
+    state.appMode = "ledger";
+    state.activeView = name;
+    renderTabs();
+    renderAppMode();
+  }
+
+  function openReceivablesMode() {
+    state.appMode = "receivables";
+    renderTabs();
+    renderAppMode();
+    renderReceivables();
+  }
+
+  function closeReceivablesMode() {
+    state.appMode = "ledger";
+    state.activeView = "ledger";
+    renderTabs();
+    renderAppMode();
+  }
 
   function toggleLock() {
     const month = currentMonthData();
@@ -546,13 +991,16 @@
         if (!parsed || typeof parsed !== "object" || !parsed.months || !Array.isArray(parsed.accounts)) throw new Error("invalid backup");
         if (!confirm("バックアップから復元します。現在の端末内データを置き換えてよいですか？")) return;
         state.data = {
-          version: 2,
+          version: 3,
           accounts: parsed.accounts,
           recentSubAccounts: Array.isArray(parsed.recentSubAccounts) ? parsed.recentSubAccounts.map((name) => String(name).trim()).filter(Boolean).slice(0, 6) : [],
+          recentClients: Array.isArray(parsed.recentClients) ? parsed.recentClients.map((name) => String(name).trim()).filter(Boolean).slice(0, 6) : [],
           months: parsed.months,
+          receivables: parsed.receivables && typeof parsed.receivables === "object" && Array.isArray(parsed.receivables.rows) ? parsed.receivables : { rows: [] },
           lastSavedAt: new Date().toISOString()
         };
         ensureMonth(monthKey());
+        ensureReceivables();
         save();
         render();
       } catch {
@@ -573,8 +1021,24 @@
     input.setSelectionRange(length, length);
   }
 
+  function restoreReceivableFocus(rowId, field) {
+    if (!window.CSS || !CSS.escape) return;
+    const input = els.receivableDetailList.querySelector(`.receivable-card[data-row-id="${CSS.escape(rowId)}"] input[data-field="${field}"]`);
+    if (!input) return;
+    input.focus();
+    if (input.type === "text") {
+      const length = input.value.length;
+      input.setSelectionRange(length, length);
+    }
+  }
+
   function focusLastRow() {
     const inputs = els.rowsContainer.querySelectorAll("tr:last-child input[data-field]");
+    if (inputs[0]) inputs[0].focus();
+  }
+
+  function focusLastReceivableRow() {
+    const inputs = els.receivableDetailList.querySelectorAll(".receivable-card:last-child input[data-field]");
     if (inputs[0]) inputs[0].focus();
   }
 

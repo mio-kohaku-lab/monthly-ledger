@@ -14,10 +14,14 @@
 <body>
   <header class="top-bar">
     <div class="title-block">
-      <h1>月次帳簿ノート</h1>
+      <h1 id="appTitle">月次帳簿ノート</h1>
+      <p id="receivableTotals" class="receivable-totals" hidden>月 0円 / 年 0円</p>
       <p id="saveStatus" class="save-status">最終保存時刻: 未保存</p>
     </div>
-    <span id="lockBadge" class="lock-badge" hidden>確定済み</span>
+    <div class="header-actions">
+      <span id="lockBadge" class="lock-badge" hidden>確定済み</span>
+      <button id="backToLedgerButton" type="button" hidden>月次帳簿ノート</button>
+    </div>
   </header>
 
   <main class="app-shell">
@@ -60,6 +64,9 @@
         <button id="toggleLockButton" type="button">確定</button>
         <button id="deleteMonthButton" type="button" class="danger">全削除</button>
       </div>
+      <div class="mode-actions">
+        <button id="openReceivablesButton" type="button">売掛金メモ</button>
+      </div>
     </section>
 
     <section id="ledgerView" class="view active" aria-label="帳簿入力">
@@ -93,6 +100,38 @@
         </table>
       </div>
       <p id="emptyState" class="empty-state" hidden>行追加を押すと、帳簿の下に1行増えます。</p>
+    </section>
+
+    <section id="receivablesView" class="view" aria-label="売掛金メモ">
+      <div id="clientSuggest" class="account-suggest" hidden></div>
+      <div class="receivable-layout">
+        <div class="receivable-calendar-panel">
+          <div class="receivable-monthbar">
+            <button id="receivablePrevMonthButton" type="button" aria-label="前月">‹</button>
+            <div id="receivableMonthLabel" class="receivable-month-label">売掛カレンダー</div>
+            <button id="receivableNextMonthButton" type="button" aria-label="次月">›</button>
+          </div>
+          <div class="receivable-weekdays" aria-hidden="true">
+            <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+          </div>
+          <div id="receivableCalendar" class="receivable-calendar" aria-label="売掛カレンダー"></div>
+        </div>
+
+        <aside class="receivable-detail-panel" aria-label="選択日の売掛メモ">
+          <div class="receivable-detail-head">
+            <div>
+              <strong id="receivableSelectedLabel">--/--</strong>
+            </div>
+          </div>
+          <form id="receivableForm" class="receivable-form">
+            <input id="receivableClientInput" type="text" autocomplete="off" placeholder="取引先">
+            <input id="receivableAmountInput" class="amount" type="text" inputmode="numeric" placeholder="金額">
+            <input id="receivableDetailInput" type="text" autocomplete="off" placeholder="内容">
+            <button type="submit">保存</button>
+          </form>
+          <div id="receivableDetailList" class="receivable-detail-list"></div>
+        </aside>
+      </div>
     </section>
 
     <section id="accountsView" class="view" aria-label="勘定科目登録">
