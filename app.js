@@ -193,7 +193,7 @@
   }
 
   function createReceivableRow() {
-    return { id: `receivable-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date: "", client: "", detail: "", amount: "", expectedDate: "", paid: false, memo: "" };
+    return { id: `receivable-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date: "", client: "", detail: "", amount: "", expectedDate: "", paid: false, memo: "", ledgerLinked: false, linkedLedgerRowId: "" };
   }
 
   function isBlankRow(row) {
@@ -717,7 +717,9 @@
     const detail = els.receivableDetailInput.value.trim();
     if (!client && !amount && !detail) return;
     const rows = receivableRows();
-    rows.push({ ...createReceivableRow(), date, client, amount, detail });
+    const receivable = { ...createReceivableRow(), date, client, amount, detail };
+    linkReceivableToLedger(receivable);
+    rows.push(receivable);
     if (client) rememberClient(client);
     normalizeReceivableRows(rows);
     save();
@@ -726,6 +728,30 @@
     els.receivableDetailInput.value = "";
     renderReceivables();
     els.receivableClientInput.focus();
+  }
+
+  function linkReceivableToLedger(receivable) {
+    if (!receivable || receivable.ledgerLinked) return;
+    const parsed = parseIsoDate(receivableDateKey(receivable.date));
+    if (!parsed) return;
+    const key = `${parsed.year}-${parsed.month}`;
+    ensureMonth(key);
+    const ledgerRow = {
+      ...createRow(),
+      date: `${parsed.month}/${parsed.day}`,
+      debit: "売掛金",
+      debitAmount: receivable.amount || "",
+      credit: "売上高",
+      subAccount: receivable.client || "",
+      creditAmount: receivable.amount || "",
+      summary: ""
+    };
+    const rows = state.data.months[key].rows;
+    normalizeRows(rows);
+    rows.push(ledgerRow);
+    normalizeRows(rows);
+    receivable.ledgerLinked = true;
+    receivable.linkedLedgerRowId = ledgerRow.id;
   }
 
   function ensureReceivableSelectedDate() {
