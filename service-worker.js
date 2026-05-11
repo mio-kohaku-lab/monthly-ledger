@@ -1,16 +1,16 @@
-const CACHE_NAME = "micro-ledger-v15";
+const CACHE_NAME = "micro-ledger-v17";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
   "./manifest.json",
-  "./icons/icon-512-v4.png",
-  "./icons/icon-192-v4.png",
-  "./icons/maskable-512-v4.png",
-  "./icons/maskable-192-v4.png",
-  "./icons/apple-touch-icon-v4.png",
-  "./icons/favicon-v4.png"
+  "./icons/icon-512.png",
+  "./icons/icon-192.png",
+  "./icons/maskable-512.png",
+  "./icons/maskable-192.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/favicon-32.png"
 ];
 
 self.addEventListener("install", (event) => {
