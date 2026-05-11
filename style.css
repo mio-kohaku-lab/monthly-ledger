@@ -186,6 +186,8 @@ body.receivable-mode .receivable-form button {
   color: #07576a;
   font-weight: 800;
 }
+body.ledger-input-mode .app-shell { padding-top: 0; }
+body.ledger-input-mode .ledger-scroll { max-height: calc(100dvh - 2px - var(--keyboard-pad)); }
 
 .notice, .hint, .empty-state {
   margin: 4px 0;
@@ -202,6 +204,8 @@ body.receivable-mode .receivable-form button {
   overflow-x: auto;
   overflow-y: auto;
   max-height: calc(100vh - 88px - var(--keyboard-pad));
+  scroll-padding-top: 32px;
+  scroll-padding-bottom: calc(72px + var(--keyboard-pad));
   border: 1.5px solid var(--line);
   background: var(--sheet);
   -webkit-overflow-scrolling: touch;

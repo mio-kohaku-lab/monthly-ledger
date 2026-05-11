@@ -255,6 +255,7 @@
   function renderAppMode() {
     const receivableMode = state.appMode === "receivables";
     document.body.classList.toggle("receivable-mode", receivableMode);
+    if (receivableMode || state.activeView !== "ledger") document.body.classList.remove("ledger-input-mode");
     els.appTitle.textContent = receivableMode ? "売掛金メモ" : "月次帳簿ノート";
     els.receivableTotals.hidden = !receivableMode;
     if (receivableMode) renderReceivableTotals();
@@ -622,6 +623,7 @@
     const update = () => {
       const hiddenHeight = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
       document.documentElement.style.setProperty("--keyboard-pad", `${Math.round(hiddenHeight)}px`);
+      scheduleLedgerHeaderAlign(document.activeElement);
     };
     window.visualViewport.addEventListener("resize", update);
     window.visualViewport.addEventListener("scroll", update);
@@ -631,14 +633,72 @@
   function keepFocusedControlVisible(event) {
     const control = event.target.closest("input, select, button");
     if (!control) return;
+    if (control.closest("#rowsContainer")) scheduleLedgerHeaderAlign(control);
     window.setTimeout(() => scrollControlIntoComfort(control), 140);
     window.setTimeout(() => scrollControlIntoComfort(control), 420);
   }
 
   function scrollControlIntoComfort(control) {
+    if (control.closest("#rowsContainer")) {
+      alignLedgerRowInsideTable(control);
+      return;
+    }
     const target = control.closest("tr, .receivable-card, .receivable-form, .account-form") || control;
     const keyboardPad = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-pad"), 10) || 0;
     target.scrollIntoView({ block: keyboardPad > 40 ? "center" : "nearest", inline: "nearest" });
+  }
+
+  function scheduleLedgerHeaderAlign(control) {
+    if (!isLedgerTableControl(control)) return;
+    document.body.classList.add("ledger-input-mode");
+    [0, 90, 260, 560, 920].forEach((delay) => {
+      window.setTimeout(() => {
+        window.requestAnimationFrame(() => {
+          alignLedgerHeaderToViewport(control);
+          alignLedgerRowInsideTable(control);
+        });
+      }, delay);
+    });
+  }
+
+  function isLedgerTableControl(control) {
+    return Boolean(
+      control
+        && control.closest
+        && state.appMode === "ledger"
+        && state.activeView === "ledger"
+        && control.closest("#rowsContainer")
+    );
+  }
+
+  function alignLedgerHeaderToViewport(control) {
+    if (!isLedgerTableControl(control)) return;
+    const scroll = control.closest(".ledger-scroll") || document.querySelector(".ledger-scroll");
+    if (!scroll) return;
+    const viewportOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
+    const targetTop = window.scrollY + scroll.getBoundingClientRect().top - viewportOffset;
+    window.scrollTo({ top: Math.max(0, Math.round(targetTop)), behavior: "auto" });
+  }
+
+  function alignLedgerRowInsideTable(control) {
+    if (!isLedgerTableControl(control)) return;
+    const scroll = control.closest(".ledger-scroll");
+    const row = control.closest("tr");
+    if (!scroll || !row) return;
+    const header = scroll.querySelector("thead");
+    const headerHeight = header ? header.getBoundingClientRect().height : 28;
+    const keyboardPad = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-pad"), 10) || 0;
+    const scrollRect = scroll.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const topLimit = scrollRect.top + headerHeight + 4;
+    const bottomPad = Math.min(keyboardPad, Math.max(0, scrollRect.height * 0.45));
+    const bottomLimit = scrollRect.bottom - bottomPad - 8;
+
+    if (rowRect.top < topLimit) {
+      scroll.scrollTop -= Math.ceil(topLimit - rowRect.top);
+    } else if (rowRect.bottom > bottomLimit) {
+      scroll.scrollTop += Math.ceil(rowRect.bottom - bottomLimit);
+    }
   }
 
   function handleReceivableBlur(event) {
@@ -692,18 +752,14 @@
   function keepFocusedRowVisible(event) {
     const input = event.target.closest("input[data-field]");
     if (!input) return;
-    if (input.closest("#rowsContainer")) scrollLedgerHeaderToTop();
+    if (input.closest("#rowsContainer")) scheduleLedgerHeaderAlign(input);
     window.setTimeout(() => {
       scrollControlIntoComfort(input);
     }, 80);
   }
 
   function scrollLedgerHeaderToTop() {
-    if (state.appMode !== "ledger" || state.activeView !== "ledger") return;
-    const scroll = document.querySelector(".ledger-scroll");
-    if (!scroll) return;
-    const top = window.scrollY + scroll.getBoundingClientRect().top;
-    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    alignLedgerHeaderToViewport(document.activeElement);
   }
 
   function handleRowAction(event) {
