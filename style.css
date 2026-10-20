@@ -100,8 +100,10 @@ h1 { margin: 0; font-size: 0.88rem; letter-spacing: 0; white-space: nowrap; }
   padding: 2px 5px;
   font-size: 0.78rem;
 }
-#yearInput { width: 62px; }
-#monthSelect { width: 52px; }
+#yearInput { width: 52px; padding-inline: 3px; appearance: textfield; }
+#yearInput::-webkit-inner-spin-button,
+#yearInput::-webkit-outer-spin-button { appearance: none; margin: 0; }
+#monthSelect { width: 62px; flex-shrink: 0; }
 
 .compact-actions, .lock-actions, .mode-actions { display: flex; gap: 3px; flex: 0 0 auto; }
 .mode-actions { margin-left: auto; padding-left: 10px; }
