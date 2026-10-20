@@ -86,7 +86,7 @@
 
     els.sortByDateButton.addEventListener("click", () => {
       if (isLocked()) return;
-      sortDatedRowsOnly();
+      sortRowsByDate();
       save();
       renderLedger();
     });
@@ -961,11 +961,23 @@
     return `${String(year).padStart(4, "0")}-${pad2(month)}-${pad2(day)}`;
   }
 
-  function sortDatedRowsOnly() {
+  function sortRowsByDate() {
     const rows = currentRows();
-    const dated = rows.filter((row) => row.date.trim()).sort((a, b) => dateSortValue(a.date).localeCompare(dateSortValue(b.date), "ja"));
-    let datedIndex = 0;
-    rows.forEach((row, index) => { if (row.date.trim()) rows[index] = dated[datedIndex++]; });
+    const leadingRows = [];
+    const groups = [];
+    rows.forEach((row) => {
+      if (row.date.trim()) {
+        groups.push([row]);
+      } else if (groups.length) {
+        // 日付のない行は直前の仕訳の続きとして、一緒に移動する。
+        groups[groups.length - 1].push(row);
+      } else {
+        leadingRows.push(row);
+      }
+    });
+    groups.sort((a, b) => dateSortValue(a[0].date).localeCompare(dateSortValue(b[0].date), "ja"));
+    const sorted = leadingRows.concat(...groups);
+    sorted.forEach((row, index) => { rows[index] = row; });
   }
 
   function dateSortValue(value) {
