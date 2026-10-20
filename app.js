@@ -62,7 +62,7 @@
   function bindElements() {
     [
       "appTitle", "receivableTotals", "saveStatus", "lockBadge", "backToLedgerButton", "yearInput", "monthSelect", "addRowButton", "sortByDateButton",
-      "printButton", "csvButton", "toggleLockButton", "deleteMonthButton", "ledgerTab", "accountsTab",
+      "printButton", "pdfButton", "csvButton", "toggleLockButton", "deleteMonthButton", "ledgerTab", "accountsTab",
       "openReceivablesButton", "backupTab", "ledgerView", "accountsView", "receivablesView", "backupView", "lockedNotice", "accountSuggest",
       "rowsContainer", "emptyState", "accountForm", "accountInput", "accountsList", "backupButton",
       "restoreInput", "printTitle", "printRows", "clientSuggest", "receivablePrevMonthButton",
@@ -92,6 +92,7 @@
     });
 
     els.printButton.addEventListener("click", () => { renderPrintRows(); window.print(); });
+    els.pdfButton.addEventListener("click", downloadPdf);
     els.csvButton.addEventListener("click", downloadCsv);
     els.toggleLockButton.addEventListener("click", toggleLock);
     els.deleteMonthButton.addEventListener("click", deleteCurrentMonth);
@@ -1151,6 +1152,24 @@
     els.printRows.innerHTML = currentRows().map((row) => `<tr>${columns.map(([key]) => `<td>${escapeHtml(row[key] || "")}</td>`).join("")}</tr>`).join("");
   }
 
+  async function downloadPdf() {
+    const title = `${state.currentYear}年${Number(state.currentMonth)}月 月次帳簿`;
+    const filename = `${monthKey()}-ledger-B5.pdf`;
+    const rows = currentRows().map((row) => ({ ...row }));
+    els.pdfButton.disabled = true;
+    els.pdfButton.textContent = "PDF作成中…";
+    try {
+      const pdf = await window.createLedgerPdf(title, columns, rows);
+      downloadBlob(pdf, filename, "application/pdf");
+    } catch (error) {
+      console.error(error);
+      alert("PDFを作成できませんでした。もう一度お試しください。");
+    } finally {
+      els.pdfButton.disabled = false;
+      els.pdfButton.textContent = "PDF保存（B5）";
+    }
+  }
+
   function downloadCsv() {
     const header = columns.map(([, label]) => label);
     const rows = currentRows().map((row) => columns.map(([key]) => row[key] || ""));
@@ -1231,7 +1250,7 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   function formatDateTime(value) {
