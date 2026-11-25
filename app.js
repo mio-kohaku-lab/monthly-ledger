@@ -1103,6 +1103,10 @@
   }
 
   function openReceivablesMode() {
+    const today = new Date();
+    state.receivableYear = String(today.getFullYear());
+    state.receivableMonth = pad2(today.getMonth() + 1);
+    state.receivableSelectedDate = isoDate(state.receivableYear, state.receivableMonth, today.getDate());
     state.appMode = "receivables";
     renderTabs();
     renderAppMode();
